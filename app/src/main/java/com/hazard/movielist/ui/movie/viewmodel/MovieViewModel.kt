@@ -23,7 +23,7 @@ class MovieViewModel(val repository: MovieRepository) : BaseViewModel() {
     //
     private val movieVideo   = MutableLiveData<Resource<MovieVideo>>()
 
-    fun fetchMovieByGenre(genreId : Int,page: Int){
+    fun fetchMovieByGenre(genreId : Int,page: Int = 1){
         if (movies.value?.status != Status.LOADMORE){
             val disposable = repository.getMovieByGenre(genreId,page)
                 .subscribeOn(Schedulers.io())

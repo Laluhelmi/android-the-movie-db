@@ -33,9 +33,9 @@ class ReviewViewModel(val repository: ReviewRepository) : BaseViewModel() {
         }
     }
 
-    fun loadMore(genreId: Int,page: Int){
+    fun loadMore(movieId: Int,page: Int){
         var newPage = page + 1
-        fetchReviews(genreId,newPage)
+        fetchReviews(movieId,newPage)
         movieReviews.postValue(Resource.loadMore(null))
     }
 

@@ -2,23 +2,18 @@ package com.hazard.movielist.ui.movie.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.MenuItem
 import android.view.View
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.hazard.movielist.R
 import com.hazard.movielist.data.api.ApiHelper
 import com.hazard.movielist.data.api.ApiServiceImpl
-import com.hazard.movielist.data.model.GenreItem
 import com.hazard.movielist.data.model.Movie
-import com.hazard.movielist.ui.base.BaseActivity
-import com.hazard.movielist.ui.base.ViewModelFactory
-import com.hazard.movielist.ui.main.adapter.MainAdapter
-import com.hazard.movielist.ui.main.viewmodel.MainViewModel
+import com.hazard.movielist.ui.base.*
 import com.hazard.movielist.ui.movie.adapter.MovieAdapter
 import com.hazard.movielist.ui.movie.viewmodel.MovieViewModel
 import com.hazard.movielist.util.Constants
@@ -26,6 +21,7 @@ import com.mindorks.framework.mvvm.utils.Status
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.activity_main.loading
 import kotlinx.android.synthetic.main.activity_movie.*
+import kotlinx.android.synthetic.main.genre_item.view.*
 
 class MovieActivity : BaseActivity(),MovieAdapter.OnItemClick {
 
@@ -33,7 +29,7 @@ class MovieActivity : BaseActivity(),MovieAdapter.OnItemClick {
     var currentPage   = 1
     var totalPage     = 0
 
-    lateinit var adapter:MovieAdapter
+    lateinit var adapter:EndlessAdapter<Movie>
 
 
     lateinit var viewModel : MovieViewModel
@@ -69,35 +65,39 @@ class MovieActivity : BaseActivity(),MovieAdapter.OnItemClick {
     }
 
     fun setAdapter(){
-        val layoutManager        = GridLayoutManager(this,2)
-        listMovie.layoutManager  = layoutManager
-        layoutManager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup(){
-            override fun getSpanSize(position: Int) : Int{
-                if (totalPage > currentPage){
-                    return if (position == adapter.itemCount - 1) 2 else 1
-                }
-                else {
-                    return 1
-                }
+        var paginationModel = PaginationModel<Movie>(datas = arrayListOf())
+        val onBind = object: EndlessAdapter.BindViewHolder<Movie>{
+            override fun bind(itemView: View, movie: Movie) {
+              //  holder.title.text = data.name
+                itemView.title.text = movie.title
+                itemView.item_image.visibility = View.VISIBLE
+                val options = RequestOptions()
+                options.fitCenter()
+                Glide.with(itemView.item_image.context)
+                    .load(Constants.TMB_IMAGE_HOST+"${movie.poster_path}")
+                    .apply(options)
+                    .into(itemView.item_image)
             }
-         }
-        adapter = MovieAdapter(arrayListOf())
-        adapter.onItemClick = this
+            override fun onItemClick(movie: Movie) {
+                val intent = Intent(applicationContext,MovieDetailActivity::class.java)
+                intent.putExtra(Constants.INTENT_MOVIE_ID,movie.id)
+                intent.putExtra(Constants.INTENT_MOVIE_NAME,movie.title)
+                startActivity(intent)
+            }
+        }
+        adapter = EndlessAdapter(R.layout.genre_item
+            ,paginationModel,onBind)
         listMovie.adapter  = adapter
-        listMovie.addOnScrollListener(object : RecyclerView.OnScrollListener(){
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                super.onScrollStateChanged(recyclerView, newState)
-                val manager = listMovie.layoutManager as GridLayoutManager
-                val lastItemPosition = manager.findLastVisibleItemPosition()
-                if (lastItemPosition == adapter.itemCount - 1 && currentPage < totalPage){
-                    viewModel.loadMore(genreId,currentPage)
-                }
+        listMovie.setGridLayout(2)
+        listMovie.addLoadMore(object : EndlessRV.OnLoadMore{
+            override fun onLoadMore(currentPage: Int) {
+                viewModel.loadMore(genreId,currentPage)
             }
         })
     }
 
     fun getLiveData(){
-        viewModel.fetchMovieByGenre(genreId,currentPage)
+        viewModel.fetchMovieByGenre(genreId = genreId)
         viewModel.getMovies().observe(this, Observer {
             when(it.status){
                 Status.SUCCESS ->{
@@ -106,12 +106,8 @@ class MovieActivity : BaseActivity(),MovieAdapter.OnItemClick {
                         movieByGenreModel ->
                         val totalPage   = movieByGenreModel.total_pages
                         val currentPage = movieByGenreModel.page
-                        //set total page
-                        adapter.totalPage      = totalPage
-                        adapter.currentPage    = currentPage
-                        this.currentPage       = currentPage
-                        this.totalPage         = totalPage
-                        renderItem(movieByGenreModel.result)
+
+                        renderItem(currentPage,totalPage,movieByGenreModel.result)
                     }
                 }
                 Status.ERROR ->{
@@ -124,8 +120,9 @@ class MovieActivity : BaseActivity(),MovieAdapter.OnItemClick {
         })
     }
 
-    fun renderItem(movie: List<Movie>){
-        adapter.addData(movie)
+    fun renderItem(page: Int,totalPages : Int,movie: List<Movie>){
+        adapter.updateAdapterData(datas = movie,page = page,totalPage = totalPages)
         adapter.notifyDataSetChanged()
+
     }
 }

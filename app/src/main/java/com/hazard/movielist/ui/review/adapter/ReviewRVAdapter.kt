@@ -88,7 +88,9 @@ class ReviewRVAdapter(
         }
     }
 
-    class LoadingViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {}
+    class LoadingViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+
+    }
 
     interface OnItemClick{
         fun onItemClick(ReviewModel: ReviewModel)

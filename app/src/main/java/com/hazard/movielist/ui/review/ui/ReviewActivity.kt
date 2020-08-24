@@ -15,8 +15,7 @@ import com.hazard.movielist.data.api.ApiHelper
 import com.hazard.movielist.data.api.ApiServiceImpl
 import com.hazard.movielist.data.model.Movie
 import com.hazard.movielist.data.model.ReviewModel
-import com.hazard.movielist.ui.base.BaseActivity
-import com.hazard.movielist.ui.base.ViewModelFactory
+import com.hazard.movielist.ui.base.*
 import com.hazard.movielist.ui.movie.adapter.MovieAdapter
 import com.hazard.movielist.ui.movie.viewmodel.MovieViewModel
 import com.hazard.movielist.ui.review.viewmodel.ReviewViewModel
@@ -25,14 +24,13 @@ import com.mindorks.framework.mvvm.utils.Status
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.activity_movie.*
 import kotlinx.android.synthetic.main.activity_review.*
+import kotlinx.android.synthetic.main.review_item.view.*
 
 class ReviewActivity : BaseActivity() {
 
     var movieId : Int = 0
     lateinit var viewModel : ReviewViewModel
-    lateinit var adapter   : ReviewRVAdapter
-    var currentPage   = 1
-    var totalPage     = 0
+    lateinit var adapter   : EndlessAdapter<ReviewModel>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,29 +46,6 @@ class ReviewActivity : BaseActivity() {
         movieId = intent.getIntExtra(Constants.INTENT_MOVIE_ID,0)
         supportActionBar?.title = "Reviews"
     }
-    fun setAdapter(){
-
-        val layoutManager        = GridLayoutManager(this,1)
-        reviewRV.layoutManager  = layoutManager
-        adapter = ReviewRVAdapter(arrayListOf())
-        reviewRV.adapter  = adapter
-        reviewRV.addItemDecoration(
-            DividerItemDecoration(
-                reviewRV.context,
-                (reviewRV.layoutManager as LinearLayoutManager).orientation
-            )
-        )
-        reviewRV.addOnScrollListener(object : RecyclerView.OnScrollListener(){
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                super.onScrollStateChanged(recyclerView, newState)
-                val manager = reviewRV.layoutManager as GridLayoutManager
-                val lastItemPosition = manager.findLastVisibleItemPosition()
-                if (lastItemPosition == adapter.itemCount - 1 && currentPage < totalPage){
-                    viewModel.loadMore(movieId,currentPage)
-                }
-            }
-        })
-    }
 
     fun setUpViewModel(){
         val apiSource = ApiHelper(ApiServiceImpl())
@@ -78,8 +53,31 @@ class ReviewActivity : BaseActivity() {
             .get(ReviewViewModel::class.java)
     }
 
+    fun setAdapter(){
+        adapter = EndlessAdapter(
+            R.layout.review_item,
+            PaginationModel(datas = arrayListOf()),
+            object : EndlessAdapter.BindViewHolder<ReviewModel>{
+                override fun bind(holder: View, data: ReviewModel) {
+                    holder.author.text  = data.author
+                    holder.content.text = data.content
+                }
+
+                override fun onItemClick(data: ReviewModel) {
+                }
+            }
+        )
+        reviewRV.adapter = adapter
+        reviewRV.setLinierLayout()
+        reviewRV.addLoadMore(object :EndlessRV.OnLoadMore{
+            override fun onLoadMore(currentPage: Int) {
+                viewModel.loadMore(movieId = movieId,page = currentPage)
+            }
+        })
+    }
+
     fun getReviewLiveData(){
-        viewModel.fetchReviews(movieId,currentPage)
+        viewModel.fetchReviews(movieId,page = 1)
         viewModel.getReviewLiveData().observe(this, Observer {
             when(it.status){
                 Status.SUCCESS ->{
@@ -87,12 +85,7 @@ class ReviewActivity : BaseActivity() {
                         loadingReview.visibility = View.GONE
                         val totalPage   = reviewResult.total_pages
                         val currentPage = reviewResult.page
-                        //set total page
-                        adapter.totalPage      = totalPage
-                        adapter.currentPage    = currentPage
-                        this.currentPage       = currentPage
-                        this.totalPage         = totalPage
-                        renderItem(reviewResult.result)
+                        renderItem(currentPage,totalPage,reviewResult.result)
                     }
                 }
                 Status.ERROR ->{
@@ -105,8 +98,8 @@ class ReviewActivity : BaseActivity() {
         })
     }
 
-    fun renderItem(review: List<ReviewModel>){
-        adapter.addData(review)
+    fun renderItem(page: Int, totalPages: Int,review: List<ReviewModel>){
+        adapter.updateAdapterData(page,totalPages,review)
         adapter.notifyDataSetChanged()
         if (review.size == 0){
             messageNodata.visibility = View.VISIBLE
